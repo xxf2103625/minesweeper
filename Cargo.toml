@@ -5,6 +5,8 @@ members = ["crates/game-core", "crates/platform", "crates/app"]
 # 依赖版本统一在 workspace 管理，各 crate 用 `workspace = true` 继承
 [workspace.dependencies]
 rand = "0.10"
+# 仅用于把 icu_provider 的 CJK 断行警告接进 log/tracing 管线后过滤掉（见 docs/bevy-engine.md §7）
+icu_provider = { version = "2.3", features = ["logging"] }
 bevy = { version = "0.19", default-features = false, features = ["2d"] }
 game-core = { path = "crates/game-core" }
 platform = { path = "crates/platform" }

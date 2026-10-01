@@ -32,10 +32,15 @@ fn main() {
                     ..default()
                 })
                 .set(bevy::log::LogPlugin {
-                    // 只保留 error 及以上：屏蔽 parley/icu_segmenter 关于中日文
-                    // 分词模型的无害提示（LineBreak::AnyCharacter 已绕开词切分），
-                    // 以及 winit 退出时的 INFO 刷屏。
-                    filter: "error".into(),
+                    // 只保留 error 及以上：屏蔽 winit 退出时的 INFO 刷屏。
+                    //
+                    // icu_provider=off 是必需的：parley 排版每条 CJK 文本都会经
+                    // icu_segmenter 的 CJK 断行字典取一次数据，取不到就 warn，
+                    // debug 构建下约 50 行/秒刷屏（release 不打印，但同样无解）。
+                    // 前提是根 Cargo.toml 给 icu_provider 开了 logging feature，
+                    // 让它走 log→tracing 管线而不是 debug 构建下的裸 eprintln。
+                    // 详见 docs/bevy-engine.md §7。
+                    filter: "error,icu_provider=off".into(),
                     ..default()
                 }),
         )

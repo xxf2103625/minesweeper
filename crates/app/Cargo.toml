@@ -12,3 +12,4 @@ path = "src/main.rs"
 game-core = { workspace = true }
 platform = { workspace = true }
 bevy = { workspace = true }
+icu_provider = { workspace = true }
