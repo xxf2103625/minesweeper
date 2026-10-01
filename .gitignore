@@ -1,0 +1,11 @@
+# 构建产物
+/target
+
+# 备份文件
+*.bak
+
+# 编辑器
+.idea/
+.vscode/
+*.swp
+.DS_Store

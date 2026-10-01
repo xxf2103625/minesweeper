@@ -1,0 +1,14 @@
+[package]
+name = "app"
+version = "0.1.0"
+edition = "2021"
+description = "扫雷 bevy 应用层：插件装配、输入、渲染同步。核心逻辑在 game-core，平台差异在 platform。"
+
+[[bin]]
+name = "minesweeper"
+path = "src/main.rs"
+
+[dependencies]
+game-core = { workspace = true }
+platform = { workspace = true }
+bevy = { workspace = true }

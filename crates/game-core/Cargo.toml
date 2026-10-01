@@ -1,0 +1,8 @@
+[package]
+name = "game-core"
+version = "0.1.0"
+edition = "2021"
+description = "扫雷核心逻辑：棋盘、关卡、翻开/泛洪/判胜负。纯 Rust，不依赖 bevy，可跨平台复用与单元测试。"
+
+[dependencies]
+rand = "0.10"

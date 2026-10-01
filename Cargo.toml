@@ -1,0 +1,17 @@
+[workspace]
+resolver = "2"
+members = ["crates/game-core", "crates/platform", "crates/app"]
+
+# 依赖版本统一在 workspace 管理，各 crate 用 `workspace = true` 继承
+[workspace.dependencies]
+rand = "0.10"
+bevy = { version = "0.19", default-features = false, features = ["2d"] }
+game-core = { path = "crates/game-core" }
+platform = { path = "crates/platform" }
+
+# 保证 dev 构建下扫雷这种 2D 小游戏依然流畅
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
