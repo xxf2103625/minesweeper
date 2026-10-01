@@ -1,6 +1,7 @@
 //! 渲染同步：把核心 [`Board`] 状态映射成 bevy 组件外观。
 //! 只在棋盘状态真正变化时写一次组件（用签名缓存去重），不每帧写。
 
+use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use game_core::GameStatus;
 
@@ -22,67 +23,85 @@ pub struct Signature {
     level: usize,
 }
 
+/// 格子标签查询：子实体（`ChildOf`）+ 文本三件套，排除信息栏。
+/// 单独起别名，避免系统签名里塞四元组的四元组。
+type Labels<'w, 's> = Query<
+    'w,
+    's,
+    (
+        &'static ChildOf,
+        &'static mut Text2d,
+        &'static mut TextColor,
+        &'static mut Visibility,
+    ),
+    (With<CellLabel>, Without<InfoText>),
+>;
+
+/// `sync_board` 的全部输入：只读状态 + 外观查询 + 上一帧签名。
+/// 合成一个 [`SystemParam`]，让系统签名保持在一行内。
+#[derive(SystemParam)]
+pub struct BoardView<'w, 's> {
+    game: Res<'w, Game>,
+    hover: Res<'w, Hover>,
+    progress: Res<'w, LevelProgress>,
+    revision: Res<'w, Revision>,
+    theme: Res<'w, AppTheme>,
+    cells: Query<'w, 's, (Entity, &'static Cell)>,
+    sprites: Query<'w, 's, &'static mut Sprite, With<Cell>>,
+    labels: Labels<'w, 's>,
+    /// 上一帧的渲染签名（系统私有状态，随 `Local` 跨帧保留）。
+    signature: Local<'s, Option<Signature>>,
+}
+
 /// 格子外观同步（底色 / 翻开色 / 悬停高亮 / 数字 / 地雷 / 旗）。
-pub fn sync_board(
-    game: Res<Game>,
-    hover: Res<Hover>,
-    progress: Res<LevelProgress>,
-    revision: Res<Revision>,
-    theme: Res<AppTheme>,
-    cells: Query<(Entity, &Cell)>,
-    mut sprites: Query<&mut Sprite, With<Cell>>,
-    mut labels: Query<
-        (&ChildOf, &mut Text2d, &mut TextColor, &mut Visibility),
-        (With<CellLabel>, Without<InfoText>),
-    >,
-    mut signature: Local<Option<Signature>>,
-) {
-    let board = &game.0;
+pub fn sync_board(mut view: BoardView<'_, '_>) {
+    let board = &view.game.0;
 
     // entity -> (col,row)，供子标签反查所属格子
-    let cell_of: std::collections::HashMap<Entity, (usize, usize)> = cells
+    let cell_of: std::collections::HashMap<Entity, (usize, usize)> = view
+        .cells
         .iter()
         .map(|(e, c)| (e, (c.col, c.row)))
         .collect();
-    let hover_cell: Option<(usize, usize)> = hover.0.and_then(|e| cell_of.get(&e).copied());
+    let hover_cell: Option<(usize, usize)> = view.hover.0.and_then(|e| cell_of.get(&e).copied());
 
     let sig = Signature {
-        revision: revision.0,
+        revision: view.revision.0,
         generation: board.generation,
         hover: hover_cell,
         status: board.status,
         flags: board.flags(),
         revealed: board.revealed.clone(),
         flagged: board.flagged.clone(),
-        level: progress.0,
+        level: view.progress.0,
     };
-    if signature.as_ref() == Some(&sig) {
+    if view.signature.as_ref() == Some(&sig) {
         return;
     }
-    *signature = Some(sig);
+    *view.signature = Some(sig);
 
     // 底色
-    for (entity, cell) in cells.iter() {
+    for (entity, cell) in view.cells.iter() {
         let i = board.idx(cell.col, cell.row);
         let is_hover = hover_cell == Some((cell.col, cell.row));
-        if let Ok(mut sprite) = sprites.get_mut(entity) {
+        if let Ok(mut sprite) = view.sprites.get_mut(entity) {
             let color = if board.status == GameStatus::Lost && board.mines[i] && board.revealed[i] {
-                theme.0.mine_hit
+                view.theme.0.mine_hit
             } else if board.revealed[i] {
-                theme.0.revealed
+                view.theme.0.revealed
             } else if is_hover {
-                theme.0.hover
+                view.theme.0.hover
             } else if board.flagged[i] {
-                theme.0.flag
+                view.theme.0.flag
             } else {
-                theme.0.cell
+                view.theme.0.cell
             };
             sprite.color = to_color(color);
         }
     }
 
     // 子标签（数字 / 地雷 / 旗）
-    for (parent, mut text, mut tcolor, mut vis) in labels.iter_mut() {
+    for (parent, mut text, mut tcolor, mut vis) in view.labels.iter_mut() {
         let Some(&(col, row)) = cell_of.get(&parent.parent()) else {
             continue;
         };
@@ -90,7 +109,7 @@ pub fn sync_board(
         if !board.revealed[i] {
             if board.flagged[i] {
                 *text = Text2d::new("旗".to_string());
-                *tcolor = TextColor(to_color(theme.0.flag));
+                *tcolor = TextColor(to_color(view.theme.0.flag));
                 *vis = Visibility::Visible;
             } else {
                 *vis = Visibility::Hidden;
@@ -99,12 +118,12 @@ pub fn sync_board(
         }
         if board.mines[i] {
             *text = Text2d::new("*".to_string());
-            *tcolor = TextColor(to_color(theme.0.mine));
+            *tcolor = TextColor(to_color(view.theme.0.mine));
             *vis = Visibility::Visible;
         } else if board.adjacent[i] > 0 {
             let n = board.adjacent[i];
             *text = Text2d::new(n.to_string());
-            *tcolor = TextColor(to_color(theme.0.number_color(n)));
+            *tcolor = TextColor(to_color(view.theme.0.number_color(n)));
             *vis = Visibility::Visible;
         } else {
             *vis = Visibility::Hidden;
@@ -129,7 +148,10 @@ pub fn update_info(
         ),
         GameStatus::Won => {
             let next = game_core::levels::next_level(progress.0);
-            format!("过关！点击进入下一关：{}", game_core::levels::LEVELS[next].name)
+            format!(
+                "过关！点击进入下一关：{}",
+                game_core::levels::LEVELS[next].name
+            )
         }
         GameStatus::Lost => "踩雷了！点击重新开始本关".to_string(),
     };

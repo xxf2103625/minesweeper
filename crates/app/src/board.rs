@@ -27,12 +27,7 @@ pub struct InfoText;
 
 /// 生成一整个关卡的棋盘实体。初始外观即正确（未翻开 = 格子底色），
 /// 后续视觉同步交给 render::sync_board。
-pub fn spawn_board(
-    commands: &mut Commands,
-    game: &Game,
-    theme: &AppTheme,
-    font: &FontSource,
-) {
+pub fn spawn_board(commands: &mut Commands, game: &Game, theme: &AppTheme, font: &FontSource) {
     let board: &Board = &game.0;
     let params = RenderParams::from(&theme.0);
 
@@ -71,7 +66,6 @@ pub fn spawn_board(
                 TextLayout {
                     justify: Justify::Center,
                     linebreak: LineBreak::AnyCharacter,
-                    ..default()
                 },
                 Transform::from_xyz(0.0, 0.0, 1.0), // 相对父格子的局部坐标
                 ChildOf(cell),

@@ -9,7 +9,12 @@ use crate::board::Cell;
 use crate::state::{AppTheme, Game, Hover, LevelProgress, Revision};
 
 /// 把光标世界坐标换算成命中的格子 (col,row)。
-fn pick_cell(world: Vec2, cols: usize, rows: usize, theme: &game_core::Theme) -> Option<(usize, usize)> {
+fn pick_cell(
+    world: Vec2,
+    cols: usize,
+    rows: usize,
+    theme: &game_core::Theme,
+) -> Option<(usize, usize)> {
     let half = theme.cell_size / 2.0;
     for row in 0..rows {
         for col in 0..cols {

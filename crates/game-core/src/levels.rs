@@ -6,10 +6,30 @@ use crate::board::LevelSpec;
 
 /// 全部关卡（按难度排序）。索引即关卡号。
 pub const LEVELS: &[LevelSpec] = &[
-    LevelSpec { name: "初级 9×9", cols: 9, rows: 9, mines: 10 },
-    LevelSpec { name: "中级 12×12", cols: 12, rows: 12, mines: 22 },
-    LevelSpec { name: "高级 16×16", cols: 16, rows: 16, mines: 40 },
-    LevelSpec { name: "专家 20×16", cols: 20, rows: 16, mines: 55 },
+    LevelSpec {
+        name: "初级 9×9",
+        cols: 9,
+        rows: 9,
+        mines: 10,
+    },
+    LevelSpec {
+        name: "中级 12×12",
+        cols: 12,
+        rows: 12,
+        mines: 22,
+    },
+    LevelSpec {
+        name: "高级 16×16",
+        cols: 16,
+        rows: 16,
+        mines: 40,
+    },
+    LevelSpec {
+        name: "专家 20×16",
+        cols: 20,
+        rows: 16,
+        mines: 55,
+    },
 ];
 
 pub const FIRST_LEVEL: usize = 0;

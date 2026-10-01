@@ -27,7 +27,12 @@ mod tests {
 
     /// 手工构造棋盘：给定雷位列表（col,row），绕过随机布雷。
     fn board_with(cols: usize, rows: usize, mines: &[(usize, usize)]) -> Board {
-        let mut b = Board::new(&LevelSpec { name: "test", cols, rows, mines: mines.len() });
+        let mut b = Board::new(&LevelSpec {
+            name: "test",
+            cols,
+            rows,
+            mines: mines.len(),
+        });
         for &(c, r) in mines {
             let i = b.idx(c, r);
             b.mines[i] = true;
@@ -49,7 +54,12 @@ mod tests {
 
     #[test]
     fn regenerate_places_exact_mine_count() {
-        let spec = LevelSpec { name: "t", cols: 9, rows: 9, mines: 10 };
+        let spec = LevelSpec {
+            name: "t",
+            cols: 9,
+            rows: 9,
+            mines: 10,
+        };
         let mut b = Board::new(&spec);
         for _ in 0..50 {
             b.regenerate();
@@ -62,7 +72,12 @@ mod tests {
 
     #[test]
     fn neighbor_counts_by_position() {
-        let b = Board::new(&LevelSpec { name: "t", cols: 9, rows: 9, mines: 1 });
+        let b = Board::new(&LevelSpec {
+            name: "t",
+            cols: 9,
+            rows: 9,
+            mines: 1,
+        });
         assert_eq!(b.neighbors(0, 0).len(), 3);
         assert_eq!(b.neighbors(8, 8).len(), 3);
         assert_eq!(b.neighbors(4, 4).len(), 8);
@@ -99,7 +114,16 @@ mod tests {
     fn empty_cell_flood_fills_until_numbers() {
         // 雷全在最右列（加 (7,8)），左侧全是空白格，(0,4) 泛洪应展开大片区域
         let mines = [
-            (8, 0), (8, 1), (8, 2), (8, 3), (8, 4), (8, 5), (8, 6), (8, 7), (8, 8), (7, 8),
+            (8, 0),
+            (8, 1),
+            (8, 2),
+            (8, 3),
+            (8, 4),
+            (8, 5),
+            (8, 6),
+            (8, 7),
+            (8, 8),
+            (7, 8),
         ];
         let mut b = board_with(9, 9, &mines);
         assert_eq!(b.adjacent[b.idx(0, 4)], 0, "precondition: (0,4) is empty");
@@ -142,7 +166,16 @@ mod tests {
     #[test]
     fn revealing_all_safe_cells_wins() {
         let mines = [
-            (0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 6), (7, 7), (8, 8), (0, 8),
+            (0, 0),
+            (1, 1),
+            (2, 2),
+            (3, 3),
+            (4, 4),
+            (5, 5),
+            (6, 6),
+            (7, 7),
+            (8, 8),
+            (0, 8),
         ];
         let mut b = board_with(9, 9, &mines);
         'outer: for r in 0..9 {

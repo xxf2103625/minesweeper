@@ -58,9 +58,8 @@ fn setup(
         TextColor(to_color(theme.0.text)),
         TextLayout {
             justify: Justify::Center,
-            // 中文无空格分词，按字符断行可跳过 ICU4X 词切分（消除那条警告）
+            // 中文无空格分词，按字符断行，避免整词被折行
             linebreak: LineBreak::AnyCharacter,
-            ..default()
         },
         Transform::from_xyz(0.0, info_y, 10.0),
     ));
