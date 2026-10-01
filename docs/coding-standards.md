@@ -29,8 +29,8 @@ game-core  ←  platform  ←  app(bin)
 
 - **系统只改核心状态，渲染系统只读状态写外观**。任何“游戏事实”（是否翻开、旗子数、胜负）的唯一真源是 `Board`，不得从 `Sprite.color` 反推。
 - 同一 schedule 内的固定顺序：`(输入).chain() → (渲染同步).chain()`。写新系统时想清楚它属于哪一段，跨段用 `.chain()` 显式声明，**不要依赖 Bevy 的默认并行顺序**。
-- 渲染同步必须带脏检查：本仓库用 `render::Signature`（`generation` + hover + status + flags + revealed/flagged + level），签名一致提前 `return`。新增渲染维度就把它加进 `Signature`，否则会出现“状态变了画面没变”的诡异 bug。
-- `generation` 由 `Board::regenerate()` 自增，是“棋盘已重开”的信号；不要用“长度变化”“下标复位”之类启发式猜重开。
+- 渲染同步必须带脏检查：本仓库用 `render::Signature`（`revision` + `generation` + hover + status + flags + revealed/flagged + level），签名一致提前 `return`。新增渲染维度就把它加进 `Signature`，否则会出现“状态变了画面没变”的诡异 bug。
+- `generation` 由 `Board::regenerate()` 自增，是“棋盘已重开”的信号；同规格重开时它会复位到相同值，因此另有 `Revision` 资源由输入层在每次重开/换关时 `+= 1`。不要用“长度变化”“下标复位”之类启发式猜重开。
 - 状态转换（`Playing → Won/Lost`）只在 `Board::reveal` 里判定；输入层负责“结束后点击 → 下一关/重开”，不要在多处写 `status = ...`。
 
 ## 4. Bevy 用法约定
@@ -40,13 +40,13 @@ game-core  ←  platform  ←  app(bin)
 - 实体清理：整块棋盘打 `BoardEntity` 标记，换关时按标记 `despawn`（0.19 会级联子实体）。不要用“记 id 列表”的方式手工清理。
 - 子实体用 `ChildOf(parent)` + 局部 `Transform::from_xyz(0.0, 0.0, 1.0)`，位置由父格子决定。
 - 查询收窄：`With<Cell>` / `With<CellLabel>` / `Without<InfoText>` 明确分开，避免同一系统里多个 `&mut` 查询冲突；也别用 `Query<Entity>`/`Query<()>` 这类“宽查询”（0.19 会和 `Res<T>` 冲突）。
-- 容错取用：查询结果可能已失效，用 `if let Ok(mut x) = sprites.get_mut(entity)` / `info.get_single_mut()`，**不要 `unwrap()` 实体或资源**。
+- 容错取用：查询结果可能已失效，用 `if let Ok(mut x) = sprites.get_mut(entity)` / `info.single_mut()`（0.19 无 `get_single_mut`）/ `windows.single().ok()?`，**不要 `unwrap()` 实体或资源**。
 - 字体、主题等重资源只在 `Startup` 加载一次，存成 `Resource` 复用；渲染里用 `RenderParams::from(&Theme)` 这种一次性派生值，别每帧重算。
 - 输入统一走 `input.rs`：`pick_cell` 负责“坐标 → 格子”，系统只表达意图（翻开/插旗/重开）。触摸端按 `platform::current().input == InputMode::Touch` 扩展新系统，**不要在现有系统里塞 `cfg` 分叉**。
 
 ## 5. Rust 风格
 
-- `cargo fmt` 为准，`cargo clippy -D warnings` 必须干净；两者都是提交前的最低门槛。
+- 以 `cargo fmt` 的输出为准，`cargo clippy --workspace --all-targets -- -D warnings` 是提交门槛；**当前仓库这两项已全绿（基线与清理记录见 §8）**——你的改动不得新增条目，也别顺手把无关文件全格式化。
 - 命名：类型 `UpperCamelCase`，函数/变量 `snake_case`，常量 `SCREAMING_SNAKE_CASE`；模块/文件名 `snake_case`。测试函数用 `描述性_条件_期望`（如 `toggle_flag_skips_revealed`）。
 - 索引换算集中在 `Board::idx(col, row)`，不要散落 `row * cols + col` 手算（`neighbors` 内部是刻意例外，因为它直接读 `mines`）。
 - 边界与溢出：优先 `saturating_sub()`（剩余雷数、`safe_total`）与 `.min()` 夹取（`number_color`、`level(index)`），不要用 `unwrap()` 兜边界。
@@ -62,7 +62,7 @@ game-core  ←  platform  ←  app(bin)
 - **确定性优先**：核心逻辑测试不要依赖随机结果。需要固定雷位时用 `game-core/src/lib.rs` 里的 `board_with(cols, rows, &[(col, row)])` 绕过随机布雷；随机相关断言写成“跑 50 次每次雷数恰好为 10”这种**不变量**（见 `regenerate_places_exact_mine_count`）。
 - 每个关卡规格都要满足可玩性不变量（`mines < cols * rows`、密度单调不减），新增关卡必须让 `levels.rs` 的两个测试继续通过。
 - 修 bug 先加复现测试，测试名描述被保护的行为。
-- 验证顺序：`cargo test -p game-core -p platform`（秒级）→ `cargo clippy --workspace -D warnings` → `cargo run -p app` 手动过一遍交互清单（见 `docs/bevy-engine.md` §9）。
+- 验证顺序：`cargo test -p game-core -p platform`（秒级）→ `cargo clippy --workspace -D warnings` → `cargo run -p app` 手动过一遍交互清单（见 `docs/bevy-engine.md` §10）。
 
 ## 7. 提交与改动纪律
 
@@ -71,3 +71,37 @@ game-core  ←  platform  ←  app(bin)
 - 新增依赖前先确认能否用现有分层解决；新依赖必须进 `[workspace.dependencies]`，并优先考虑 feature 精简（`default-features = false`）。
 - `Cargo.lock` 一起提交；`target/`、`.DS_Store`、`*.bak` 已被 `.gitignore` 排除，不要 `git add -f` 进去。
 - 文档同步：改了 API、关卡、操作方式或 Bevy 版本，同一批改动里更新 `README.md` / `docs/bevy-engine.md` / `docs/coding-standards.md`。
+
+## 8. 当前 lint / fmt 基线（2026-10-02 已全绿）
+
+```bash
+cargo fmt --all -- --check                                  # 0 差异
+cargo clippy --workspace --all-targets -- -D warnings        # 0 告警
+```
+
+**这两项是硬门槛：改动前后都必须保持全绿**，别为了让某处过编译就加 `#[allow]`。
+之前的 4 条告警是这样清掉的（遇到同类问题照这个思路修，不要 `#[allow]` 糊）：
+
+| 告警 | 位置 | 实际修法 |
+| --- | --- | --- |
+| `needless_update` | `crates/app/src/board.rs`、`crates/app/src/plugin.rs` 的 `TextLayout` | `TextLayout` 只有 `justify`/`linebreak` 两个字段，全部写出后删掉 `..default()`；隔壁 `TextFont` 有 8 个字段，`..default()` **必须保留** |
+| `type_complexity` | `crates/app/src/render.rs` 的标签查询 | 提取 `type Labels<'w, 's> = Query<'w, 's, (&'static ChildOf, &'static mut Text2d, &'static mut TextColor, &'static mut Visibility), (With<CellLabel>, Without<InfoText>)>;` |
+| `too_many_arguments` | `crates/app/src/render.rs` 的 `sync_board`（9 参数） | 用 `#[derive(SystemParam)] pub struct BoardView<'w, 's>` 把 5 个 `Res` + 3 个 `Query` + 1 个 `Local` 合成一个参数，系统签名变成 `pub fn sync_board(mut view: BoardView<'_, '_>)` |
+
+- 不要用 `#[allow(clippy::all)]` 这类宽口子；确实划不耗时才单条 `#[allow(clippy::xxx)]`，并在上一行写原因。
+- 仓库根 `src/main.rs` 是重构前的单文件旧版（607 行，不在 workspace 编译范围内）；清理它属于独立任务，别顺手删。
+
+## 9. `#[derive(SystemParam)]` 约定（0.19）
+
+系统参数超过 7 个（clippy 默认阈值）就用 `#[derive(SystemParam)]`（`use bevy::ecs::system::SystemParam;`）把参数分组，别加 `#[allow]`。本仓库的 `render::BoardView` 是范例。
+
+写这个结构体时有两个必踩的坑：
+
+- **结构体字段里的组件路径必须写 `&'static` / `&'static mut`**，不能写字面生命周期 `&'w ChildOf`。
+  写成 `'w` 会在 derive 处报 `E0478: lifetime bound not satisfied` / `lifetime may not live long enough`
+  （derive 生成的 `SystemParam::Item<'w, 's>` 要求内部数据与 `Self` 同生命周期，只有 `'static` 组件路径满足）。
+- **`Local` 只带 `'s`**：`signature: Local<'s, Option<Signature>>`。它是“系统私有跨帧状态”，
+  正好可以从 `sync_board` 参数位挪进来，等价于原来的 `mut signature: Local<Option<Signature>>`。
+- 生命周期声明保持两个：`pub struct X<'w, 's>`；系统签名里用 `X<'_, '_>` 让编译器推。
+- 分组只用于**同一系统内部的参数收敛**；跨系统共享的状态仍然升格成 `Resource`（见 §3），
+  不要用 SystemParam 字段当共享存储。
